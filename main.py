@@ -24,17 +24,17 @@ A: You need to install BeautifulSoup (pip install bs4)
 
 """
 
+
 class PostCrawler:
-    'ver:0002'
+    """ver:0002"""
 
     def __init__(self, link, data):
         self.link = link
         self.data = data
 
-
     def link_checker(self, link_in):
         if link_in.startswith('/'):
-            out_link =  self.link+link_in
+            out_link = self.link+link_in
             print "GOTCHA"
 
         else:
@@ -42,16 +42,16 @@ class PostCrawler:
 
         return out_link
 
-
     def tagSoup(self, target_link):
         strike = web_walker.Request(target_link)
-        # strike.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
-        strike.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0')
+        strike.add_header(
+            'User-Agent',
+            'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0'
+        )
         out = web_walker.urlopen(strike)
         soup = BeautifulSoup(out.read(), 'lxml')
 
         return soup
-
 
     def loop_linker(self):
         linker_container = []
@@ -59,13 +59,13 @@ class PostCrawler:
         for tag in self.tagSoup(self.link).find_all('a'):
             try:
                 link_to_page = self.link_checker(tag.attrs['href'])
-                if link_to_page not in linker_container and self.link in link_to_page:
-                   linker_container.append(link_to_page)
+                if link_to_page not in linker_container\
+                        and self.link in link_to_page:
+                    linker_container.append(link_to_page)
             except KeyError:
                 pass
 
         return linker_container
-
 
     def tag_loop(self, target_obj, elem, io):
         out_values = []
@@ -81,10 +81,9 @@ class PostCrawler:
 
         return out_values
 
-
     @property
     def body_checker(self):
-        file_ = open(self.data, 'w')		
+        file_ = open(self.data, 'w')
         writer = csv.writer(file_, delimiter=',')
         post_counter = 0
 
@@ -98,7 +97,7 @@ class PostCrawler:
                         title = header
                         break
 
-                    post = ''	 
+                    post = ''
                     for text in self.tag_loop(item, 'p', 0):
                         post = post+text+'\n'
                     print post
@@ -107,32 +106,30 @@ class PostCrawler:
                     for img in self.tag_loop(item, 'img', 1):
                         if img.startswith('/') and 'www' not in img:
                             img_set = img_set+self.link+img+'\n'
-                        elif 'facebook.com' not in img and 'twitter' not in img:
+                        elif 'facebook.com' not in img\
+                                and 'twitter' not in img:
                             img_set = img_set+img+'\n'
-                        
+
                     print img_set
-                   
-                    if len(post.replace(' ','').replace('\n', ''))<200:
+
+                    if len(post.replace(' ', '').replace('\n', '')) < 200:
                         break
+                    if title != '':
+                        writer.writerow([title, post, img_set])
+                    post_counter += 1
 
                 except TypeError:
                     pass
                 except KeyError:
                     pass
-                if title != '':
-                	writer.writerow([title, post, img_set])
-                	post_counter += 1
 
         file_.close()
 
-        return "Obtained %d items" % post_counter       
+        return "Obtained %d items" % post_counter
 
-
-crawler = PostCrawler(link="http://www.segodnya.ua", data = 'las.csv')
+crawler = PostCrawler(link="http://www.segodnya.ua", data='segodnya.csv')
 print crawler.body_checker
 
 # http://www.independent.co.uk ^^
 # https://www.thetimes.co.uk/ ^^
 # http://www.segodnya.ua ^^
-
-
