@@ -7,6 +7,7 @@ import csv
 FAQ:
 Q: Can I upload images with this app?
 A: Not yet.
+UPD: In that moment you can see image's links
 
 Q: Where i can find result csv?
 A: In the same folder where you save this script.
@@ -24,91 +25,111 @@ A: You need to install BeautifulSoup (pip install bs4)
 """
 
 class PostCrawler:
-	'This is alpha version of context crawler with search deep = 1'
+    'ver:0002'
 
-	def __init__(self, link, data):
-		self.link = link
-		self.data = data
-
-
-	def link_checker(self, link_in):
-
-		if link_in.startswith('/'):
-			out_link =  self.link+link_in
-			print "GOTCHA"
-
-		else:
-			out_link = link_in
-
-		return out_link
+    def __init__(self, link, data):
+        self.link = link
+        self.data = data
 
 
-	@property
-	def link_watcher(self):
-			
-		strike = web_walker.Request(self.link)
-		strike.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
-		out = web_walker.urlopen(strike)
-		soup = BeautifulSoup(out.read(), 'lxml')		
-		link_container = []
-		titles =[]
-		file_ = open(self.data, 'w')		
-		writer = csv.writer(file_, delimiter=',')
+    def link_checker(self, link_in):
+        if link_in.startswith('/'):
+            out_link =  self.link+link_in
+            print "GOTCHA"
 
-		for tag in soup.find_all('a'):
+        else:
+            out_link = link_in
 
-			post =''
-			title=''
-			text = []
-
-			print tag.attrs['href']			
-
-			if tag.attrs['href'] not in link_container:
-				
-				item_link = self.link_checker(tag.attrs['href'])
-				print item_link
-			
-				try:
-					req_item = web_walker.Request(item_link)
-					req_item.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
-					inner = web_walker.urlopen(req_item)
-					title_soup = BeautifulSoup(inner.read(), 'lxml')
-					link_container.append(tag.attrs['href'])
-											
-					for tag in title_soup.find_all('h1'):
-						if len(tag.text)>3 and '404' not in tag.text:
-							title = tag.text
-							titles.append(tag.text)
-							
-					print title
-
-					# Good title  == long title
-					if len(title)<4:
-						break
-					
-					for tag in title_soup.find_all('p'):
-						text.append(tag.text)
-					
-					for item in text:
-						post = post+item+'\n'
-
-					# I think that less then 200 characters in post it's not enought
-					if len(post.replace(' ','').replace('\n', ''))<200:
-						break
-
-					writer.writerow([title.encode('utf-8'), post.encode('utf-8')])
-								
-				except Exception:
-					pass
-		
-
-		file_.close()
-		
-		return titles
+        return out_link
 
 
-crawler = PostCrawler(link="http://www.segodnya.ua", data = 'segodnya.csv')
-crawler.link_watcher
+    def tagSoup(self, target_link):
+        strike = web_walker.Request(target_link)
+        # strike.add_header('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36')
+        strike.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:47.0) Gecko/20100101 Firefox/47.0')
+        out = web_walker.urlopen(strike)
+        soup = BeautifulSoup(out.read(), 'lxml')
+
+        return soup
+
+
+    def loop_linker(self):
+        linker_container = []
+
+        for tag in self.tagSoup(self.link).find_all('a'):
+            try:
+                link_to_page = self.link_checker(tag.attrs['href'])
+                if link_to_page not in linker_container and self.link in link_to_page:
+                   linker_container.append(link_to_page)
+            except KeyError:
+                pass
+
+        return linker_container
+
+
+    def tag_loop(self, target_obj, elem, io):
+        out_values = []
+        for tag in self.tagSoup(target_obj).find_all(elem):
+            if io == 0:
+                value = tag.text.encode('utf-8')
+            else:
+                value = tag.attrs['src']
+
+            # out_value = value.encode('utf-8')
+            if value not in out_values:
+                out_values.append(value)
+
+        return out_values
+
+
+    @property
+    def body_checker(self):
+        file_ = open(self.data, 'w')		
+        writer = csv.writer(file_, delimiter=',')
+        post_counter = 0
+
+        for item in self.loop_linker():
+            if item is not None:
+
+                print item
+                try:
+                    title = ''
+                    for header in self.tag_loop(item, 'h1', 0):
+                        title = header
+                        break
+
+                    post = ''	 
+                    for text in self.tag_loop(item, 'p', 0):
+                        post = post+text+'\n'
+                    print post
+
+                    img_set = ''
+                    for img in self.tag_loop(item, 'img', 1):
+                        if img.startswith('/') and 'www' not in img:
+                            img_set = img_set+self.link+img+'\n'
+                        elif 'facebook.com' not in img and 'twitter' not in img:
+                            img_set = img_set+img+'\n'
+                        
+                    print img_set
+                   
+                    if len(post.replace(' ','').replace('\n', ''))<200:
+                        break
+
+                except TypeError:
+                    pass
+                except KeyError:
+                    pass
+                if title != '':
+                	writer.writerow([title, post, img_set])
+                	post_counter += 1
+
+        file_.close()
+
+        return "Obtained %d items" % post_counter       
+
+
+crawler = PostCrawler(link="http://www.segodnya.ua", data = 'las.csv')
+print crawler.body_checker
 
 # http://www.independent.co.uk ^^
 # https://www.thetimes.co.uk/ ^^
